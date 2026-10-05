@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "773141981676",
+    "project_id": "time-table-ac7a3",
+    "storage_bucket": "time-table-ac7a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:773141981676:android:c316fc3a43644aca1578c9",
+        "android_client_info": {
+          "package_name": "com.example.time_table"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbvX1Lp9zfP_macePPjFKLNeEEJ4u52VY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

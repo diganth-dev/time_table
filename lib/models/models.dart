@@ -1,0 +1,15 @@
+export 'user_role.dart';
+export 'user_profile.dart';
+export 'college.dart';
+export 'department.dart';
+export 'course.dart';
+export 'section.dart';
+export 'staff.dart';
+export 'subject.dart';
+export 'room.dart';
+export 'time_slot.dart';
+export 'teacher_availability.dart';
+export 'timetable_entry.dart';
+export 'timetable_version.dart';
+export 'conflict_item.dart';
+export 'notification_item.dart';

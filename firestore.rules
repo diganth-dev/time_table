@@ -1,0 +1,207 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function userDocExists() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.role == 'super_admin' || request.auth.token.role == 'superadmin' || 
+         (userDocExists() && (getUserData().role == 'super_admin' || getUserData().role == 'superadmin')));
+    }
+
+    function isCollegeAdmin(collegeId) {
+      return isAuthenticated() && (
+        isSuperAdmin() || 
+        (((request.auth.token.role == 'college_admin' || request.auth.token.role == 'admin') || 
+          (userDocExists() && (getUserData().role == 'college_admin' || getUserData().role == 'admin'))) && 
+         userDocExists() && getUserData().collegeId == collegeId)
+      );
+    }
+
+    function isTeacher(collegeId) {
+      return isAuthenticated() && (
+        userDocExists() && 
+        getUserData().role == 'teacher' && 
+        getUserData().collegeId == collegeId
+      );
+    }
+
+    function isStudent(collegeId) {
+      return isAuthenticated() && (
+        userDocExists() && 
+        getUserData().role == 'student' && 
+        getUserData().collegeId == collegeId
+      );
+    }
+
+    function belongsToCollege(collegeId) {
+      return isAuthenticated() && (
+        isSuperAdmin() || 
+        (userDocExists() && getUserData().collegeId == collegeId)
+      );
+    }
+
+    // Colleges collection
+    match /colleges/{collegeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() || 
+        isCollegeAdmin(collegeId) || 
+        (userDocExists() && getUserData().collegeId == collegeId) || 
+        request.resource.data.adminId == request.auth.uid
+      );
+      allow update, delete: if isSuperAdmin() || isCollegeAdmin(collegeId);
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        isSuperAdmin() || 
+        (resource.data.collegeId != null && isCollegeAdmin(resource.data.collegeId))
+      );
+      allow create: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId || 
+        isSuperAdmin() || 
+        (resource.data.collegeId != null && isCollegeAdmin(resource.data.collegeId))
+      );
+      allow delete: if isSuperAdmin() || (resource.data.collegeId != null && isCollegeAdmin(resource.data.collegeId));
+    }
+
+    // Departments collection
+    match /departments/{departmentId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Courses collection
+    match /courses/{courseId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Sections collection
+    match /sections/{sectionId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Staff collection
+    match /staff/{staffId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+      // Teachers can update their own profile / availability fields
+      allow update: if isAuthenticated() && (
+        isCollegeAdmin(resource.data.collegeId) ||
+        (userDocExists() && getUserData().staffId == staffId && request.resource.data.collegeId == resource.data.collegeId)
+      );
+    }
+
+    // Subjects collection
+    match /subjects/{subjectId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Rooms collection
+    match /rooms/{roomId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Time slots collection
+    match /timeSlots/{timeSlotId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Teacher availability collection
+    match /teacherAvailability/{availabilityId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && (
+        isCollegeAdmin(request.resource.data.collegeId) ||
+        (userDocExists() && getUserData().staffId == request.resource.data.teacherId && request.resource.data.collegeId == getUserData().collegeId)
+      );
+      allow delete: if isAuthenticated() && (
+        isCollegeAdmin(resource.data.collegeId) ||
+        (userDocExists() && getUserData().staffId == resource.data.teacherId && resource.data.collegeId == getUserData().collegeId)
+      );
+    }
+
+    // Timetable versions
+    match /timetableVersions/{versionId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Timetable entries collection
+    match /timetableEntries/{entryId} {
+      // Students and Teachers can only read published entries, Admins can read drafts too
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId) && (
+        resource.data.status == 'published' || 
+        isCollegeAdmin(resource.data.collegeId)
+      );
+      // Only College Admins can create, update, or delete timetable entries
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Conflicts collection
+    match /conflicts/{conflictId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId) && isCollegeAdmin(resource.data.collegeId);
+      allow create, update: if isAuthenticated() && isCollegeAdmin(request.resource.data.collegeId);
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && belongsToCollege(resource.data.collegeId) && (
+        resource.data.recipientRole == 'all' || 
+        (userDocExists() && resource.data.recipientRole == getUserData().role) || 
+        resource.data.recipientUserId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        isCollegeAdmin(request.resource.data.collegeId) ||
+        request.resource.data.recipientUserId == request.auth.uid
+      );
+      allow update: if isAuthenticated() && (
+        // User marking their own notification as read
+        resource.data.recipientUserId == request.auth.uid || 
+        isCollegeAdmin(resource.data.collegeId)
+      );
+      allow delete: if isAuthenticated() && isCollegeAdmin(resource.data.collegeId);
+    }
+
+    // College settings collection
+    match /collegeSettings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (
+        isSuperAdmin() || 
+        request.auth.token.role == 'college_admin' || 
+        request.auth.token.role == 'admin' ||
+        (userDocExists() && (getUserData().role == 'college_admin' || getUserData().role == 'admin'))
+      );
+    }
+  }
+}
